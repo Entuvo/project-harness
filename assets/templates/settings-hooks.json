@@ -1,0 +1,15 @@
+{
+  "_comment": "Merge the 'hooks' key into the target project's .claude/settings.json. Include ONLY the hooks you installed. The 'test ! -f || python3' guard means a missing hook file allows the edit instead of bricking the session (hooks fail open; the self-test proves they fire when healthy). Assumes python3 on PATH.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "sh -c 'test ! -f .claude/hooks/protected_paths.py || python3 .claude/hooks/protected_paths.py'" },
+          { "type": "command", "command": "sh -c 'test ! -f .claude/hooks/secret_scan.py || python3 .claude/hooks/secret_scan.py'" },
+          { "type": "command", "command": "sh -c 'test ! -f .claude/hooks/status_guard.py || python3 .claude/hooks/status_guard.py'" }
+        ]
+      }
+    ]
+  }
+}

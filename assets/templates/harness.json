@@ -1,0 +1,25 @@
+{
+  "harness_version": 1,
+  "tier": "{{TIER}}",
+  "installed": "{{DATE}}",
+  "check_command": "{{CHECK_COMMAND}}",
+  "_components_rule": "components = every installed file carrying a harness: marker, plus copied scripts. Adding or retiring a component updates this list in the same change (audits fail orphans on either side).",
+  "components": [
+    "CLAUDE.md",
+    "docs/PRD.md",
+    "docs/HARNESS.md",
+    "docs/UNKNOWNS.md",
+    "docs/PLAN.md",
+    "docs/DECISIONS.md",
+    "docs/ACTIVE.md"
+  ],
+  "hooks": {
+    "protected_paths": [],
+    "gated_statuses": ["done"],
+    "evidence_keys": ["verify_cmd", "result", "artifact"],
+    "story_glob": "docs/stories/*.md"
+  },
+  "generated_docs": {},
+  "_generated_docs_example": {"docs/STATUS.md": "python3 scripts/gen_status.py docs/stories"},
+  "core_rules_sha256": "{{FILLED_BY: python3 scripts/harness_selftest.py --hash-rules <root>}}"
+}

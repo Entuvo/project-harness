@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs / scratch
+*.log
+tmp/
+scratch/
+
+# Harness self-test scratch (the self-test writes synthetic installs to a temp dir;
+# if a run ever leaves artifacts in-tree, keep them out of version control)
+.harness-selftest/

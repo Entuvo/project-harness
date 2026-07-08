@@ -1,0 +1,45 @@
+name: Claude Issue Triage
+
+# Automatic triage: every newly opened issue is read once and labeled, with a
+# short triage comment. No @claude mention needed. Runs one Claude job per new
+# issue, so it uses API credits on each open — that's the tradeoff for "watch
+# the repo for issues" behavior.
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Triage the new issue
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Non-interactive run: this prompt is the whole instruction.
+          prompt: |
+            A new issue was opened in this repository: #${{ github.event.issue.number }}.
+
+            Read the issue title and body, then triage it:
+            1. Apply the most fitting existing labels — use only labels that
+               already exist in this repo (e.g. bug, enhancement, documentation,
+               question). Do not invent new labels.
+            2. If it's a bug report missing reproduction steps, environment, or
+               the self-test / audit output, note precisely what's missing.
+            3. Post exactly ONE concise triage comment. Be welcoming and brief.
+
+            Do not modify any code or files. Labeling and a single comment only.
+          # Give the run just the GitHub CLI verbs it needs to label + comment.
+          claude_args: |
+            --allowedTools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"
+        env:
+          GH_TOKEN: ${{ github.token }}
