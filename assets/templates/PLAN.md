@@ -1,13 +1,13 @@
 # Plan — {{PHASE_OR_FEATURE}}
 <!-- harness:plan v1 · volatility-sorted: what's likely to CHANGE sits at the top, not what happens first -->
+<!-- Phase names come from this file's headings and nowhere else — a second numbering scheme is drift. -->
+<!-- Tier S: this whole file stays under one page. -->
 
 ## Volatile decisions (resolve or toggle before dependent steps)
 
-<!-- Schema shapes, external API boundaries, execution models — anything whose change would ripple. Each links to its UNKNOWNS.md toggle. -->
+<!-- Pointers only: picks, alternatives, and tradeoffs live in UNKNOWNS.md. Restating them here is a fork that will rot. -->
 
-| Step | Decision | Current pick | Alternative kept open | UNKNOWNS ref |
-|---|---|---|---|---|
-| V1 | {{e.g. export runs as background job}} | {{pick}} | {{fallback + what switching costs}} | D{{n}} |
+- Blocks step {{n}}: UNKNOWNS.md D{{n}} — {{one-line label, e.g. "export execution model"}}
 
 ## Steps
 
@@ -23,7 +23,8 @@
 
 ## Deviation log
 
-<!-- Fill the row AT THE MOMENT you diverge, not retroactively. These rows are the retro's raw material at the phase audit — an empty log after a hard phase is itself a finding. -->
+<!-- Tier S: leave this section empty until the SECOND deviation — the first is a line in ACTIVE.md.
+     Fill the row AT THE MOMENT you diverge, not retroactively. These rows are the retro's raw material at the phase audit — an empty log after a hard phase is itself a finding. -->
 
 | Date | Planned | Actual | Why | Tradeoff accepted | Lesson |
 |---|---|---|---|---|---|

@@ -51,6 +51,7 @@ Walk the catalog. Each row: what it looks like when healthy, what drift looks li
 | Decision expiry | DECISIONS.md `revisit_when` conditions checked each audit | A decision whose revisit condition came true, still governing | Evaluate each revisit_when against today's reality |
 | Upstream divergence (if trait installed) | Zero PATCHES rows, or rows with live retirement conditions | A patch outliving its retirement condition (silent re-fork); upstream edits not in the ledger | Evaluate each retirement condition; verify the protected dir is clean modulo ledgered paths |
 | Doc-consumer rot | Every harness doc has a writer, trigger, consumer | A doc updated by nobody, read by nobody, describing last month | For each doc: when last updated, what updates it, who read it this phase — fail any doc with no answer |
+| Tier budget | Installed ceremony fits the tier's caps in `references/tiers.md` (tier S: one-page plan, no standalone plan docs, audits diff-scaled) | Governance volume outgrowing the product code; plan pages, report files, or logs past the tier's caps | Compare the manifest's tier against the caps; over-budget → retirement/slimming proposal in check 6 |
 
 ### 6. Retro & right-sizing
 
@@ -59,6 +60,7 @@ Mine deviation logs and audit findings since the last audit:
 - **Pattern threshold: the same failure class twice.** Once is noise; twice is a pattern → propose a harness addition (new rule, hook, or check) as a backlog item citing the incidents. Proposal, never silent application — the user authorizes, then it lands like any other change.
 - **Cost check:** any guard that has fired only false positives, or protects against something this project structurally can't do → propose retirement (with `subsumed_by`/`obsolete_because`).
 - Rules that were repeatedly bypassed with authorization are mis-sized: either promote enforcement (ladder up: prose → hook) or loosen the rule honestly.
+- **YAGNI check:** does any planned-but-unstarted phase serve a consumer that does not yet exist (a second brand with one brand live, a feedback loop before anything publishes)? If yes, propose deferring it — harness planning feels cheap, which pulls speculative phases forward.
 
 ### 7. Report & handoff
 
@@ -89,8 +91,15 @@ PROCEED / PROCEED-WITH-FIXES / BLOCKED (reason)
 
 Then update ACTIVE.md (audit happened, verdict, top findings) and tell the user the verdict with the one or two findings that matter most — plain language, no ceremony.
 
-## Cadence
+## Cadence — scale depth to diff size, not phase count
 
-- Phase boundary: full seven checks.
+The audit must never cost more than the phase it audits. Measure the diff since the last audit (`git diff --stat <last-audit-ref>`):
+
+- **Small diff (roughly < 300 changed lines, no schema/API/infra change):** light audit — run the check command and the self-test (checks 1–3 collapse into their exit codes), spot-check status honesty, then append **one paragraph to ACTIVE.md**: date, verdict, anything found. No report file, no multi-auditor pass.
+- **Above threshold, or any release/merge milestone:** full seven checks with the report.
+
+Prior audit reports are **inputs** (dates, open proposals), never audit subjects — auditing an audit is drift, not diligence.
+
+- Phase boundary: full seven checks (subject to the diff-size rule above).
 - Mid-phase spot check (optional, after a rough week or a big merge): checks 3 + 4 + the Plan-vs-code row of check 5.
 - Never batch audits ("we'll audit both phases later") — the value is catching drift while the diff is small.

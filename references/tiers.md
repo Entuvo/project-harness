@@ -33,6 +33,12 @@ Confirm the tier with the user before installing.
 | Self-test | `scripts/harness_selftest.py` **copied into the project** (skill-relative paths rot in CI). At tier S it verifies manifest, components, markers, and the rules hash; hooks add plant tests at tier M. | copy from `scripts/harness_selftest.py` |
 | Manifest | `.claude/harness.json`: tier, components, core-rules hash, hook config. What audits check against. | `harness.json` |
 
+**Tier-S ceremony budget (hard caps, not aspirations).** Field-tested finding: on small repos the harness's volume, not its rules, becomes the over-engineering. At tier S:
+
+- PLAN.md is **one page**. No standalone implementation-plan documents — a plan longer than the diff it describes is the named disease.
+- No deviation log until the **second** deviation. One deviation is a line in ACTIVE.md; the second creates the log with both rows.
+- Audits follow the diff-size rule in `references/drift-audit.md` (small diff → checklist result in ACTIVE.md, not a report file).
+
 Every document must have a writer, an update trigger, and a consumer. A doc nobody is obligated to update and nobody reads will rot and then lie — if you can't name all three, don't install the doc.
 
 ## Tier M — enforcement (multi-week, agent-driven, or production)
