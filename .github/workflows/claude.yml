@@ -14,7 +14,7 @@ on:
     types: [opened, assigned]
 
 # Only run when the trigger text actually contains @claude, so ordinary
-# activity doesn't spend API credits.
+# activity doesn't trigger a run.
 jobs:
   claude:
     if: |
@@ -36,5 +36,3 @@ jobs:
 
       - name: Run Claude Code
         uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
