@@ -31,7 +31,8 @@ def find_manifest(start: str):
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
-        fp = (payload.get("tool_input") or {}).get("file_path") or ""
+        ti = payload.get("tool_input") or {}
+        fp = ti.get("file_path") or ti.get("notebook_path") or ""
         if not fp:
             return 0
         root, manifest = find_manifest(os.path.dirname(os.path.abspath(fp)))

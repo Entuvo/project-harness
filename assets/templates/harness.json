@@ -11,9 +11,12 @@
     "docs/UNKNOWNS.md",
     "docs/PLAN.md",
     "docs/DECISIONS.md",
-    "docs/ACTIVE.md"
+    "docs/ACTIVE.md",
+    "scripts/harness_selftest.py"
   ],
+  "_hooks_enabled_rule": "hooks.enabled = hook files that MUST be present in .claude/hooks/, wired in settings.json, and plant-passing (tier M and up). The self-test FAILs any enabled hook missing on disk — otherwise a deleted hook whose 'test ! -f'-guarded settings line remains is silent-green. Leave [] at tier S.",
   "hooks": {
+    "enabled": [],
     "protected_paths": [],
     "gated_statuses": ["done"],
     "evidence_keys": ["verify_cmd", "result", "artifact"],

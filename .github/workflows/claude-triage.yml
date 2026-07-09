@@ -2,8 +2,8 @@ name: Claude Issue Triage
 
 # Automatic triage: every newly opened issue is read once and labeled, with a
 # short triage comment. No @claude mention needed. Runs one Claude job per new
-# issue, so it uses API credits on each open — that's the tradeoff for "watch
-# the repo for issues" behavior.
+# issue on the Claude subscription — the tradeoff for "watch the repo for
+# issues" behavior.
 on:
   issues:
     types: [opened]
@@ -24,7 +24,6 @@ jobs:
       - name: Triage the new issue
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # Non-interactive run: this prompt is the whole instruction.
           prompt: |
             A new issue was opened in this repository: #${{ github.event.issue.number }}.

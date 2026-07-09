@@ -40,12 +40,19 @@ def has_evidence(text: str, keys) -> bool:
     return False
 
 
+def edited_text(ti: dict) -> str:
+    """Every write surface: Write content, Edit/MultiEdit new_string(s), NotebookEdit new_source."""
+    parts = [ti.get("content"), ti.get("new_string"), ti.get("new_source")]
+    parts += [e.get("new_string") for e in (ti.get("edits") or []) if isinstance(e, dict)]
+    return "\n".join(p for p in parts if p)
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
         ti = payload.get("tool_input") or {}
-        fp = ti.get("file_path") or ""
-        new_text = ti.get("content") or ti.get("new_string") or ""
+        fp = ti.get("file_path") or ti.get("notebook_path") or ""
+        new_text = edited_text(ti)
         if not fp or not new_text:
             return 0
         root, manifest = find_manifest(os.path.dirname(os.path.abspath(fp)))
@@ -57,20 +64,20 @@ def main() -> int:
         glob = hooks.get("story_glob") or "docs/stories/*.md"
         gated = hooks.get("gated_statuses") or []
         keys = hooks.get("evidence_keys") or ["verify_cmd", "result"]
-        rel = os.path.relpath(os.path.abspath(fp), root)
+        rel = os.path.relpath(os.path.realpath(fp), root)  # realpath: root is realpath'd, symlinks must agree
         if not fnmatch.fnmatch(rel, glob):
             return 0
         m = re.search(r"^status:\s*(\S+)", new_text, re.MULTILINE)
         if not m or m.group(1).strip("'\"") not in gated:
             return 0
-        # Evidence may be in the written fragment or already on disk.
+        # A fragment edit (Edit/MultiEdit/NotebookEdit) may omit evidence that
+        # already exists on disk; a full Write carries the whole file.
+        is_fragment = bool(ti.get("new_string") or ti.get("edits") or ti.get("new_source"))
         on_disk = ""
         p = Path(fp)
         if p.is_file():
             on_disk = p.read_text(errors="replace")
-        if has_evidence(new_text, keys) or (
-            ti.get("new_string") and has_evidence(on_disk, keys)
-        ):
+        if has_evidence(new_text, keys) or (is_fragment and has_evidence(on_disk, keys)):
             return 0
         print(
             f"BLOCKED: this edit sets status '{m.group(1)}' on {rel} without evidence "
