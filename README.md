@@ -50,7 +50,7 @@ It detects the mode automatically: no `.claude/harness.json` yet → Setup; one 
 
 ## The status dashboard
 
-A picture is worth a hundred words. Run:
+A picture is worth a thousand words. Run:
 
 ```bash
 python3 scripts/gen_dashboard.py . > docs/status.html
