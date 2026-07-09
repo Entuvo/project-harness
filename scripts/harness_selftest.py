@@ -17,6 +17,12 @@ import sys
 
 RESULTS = []
 
+# An unfilled template placeholder: {{ immediately followed by a non-space, up to
+# }}. Catches the skill's forms — {{TIER}} and {{descriptive prose}} alike — while
+# skipping conventionally-spaced Jinja/handlebars ({{ user.name }}) a real doc may
+# legitimately contain. Prose describing a placeholder must use the spaced form.
+PLACEHOLDER = re.compile(r"\{\{\S[^}]*\}\}")
+
 
 def record(status: str, name: str, detail: str = ""):
     RESULTS.append((status, name, detail))
@@ -96,25 +102,38 @@ def main() -> int:
         record("FAIL", "manifest", ".claude/harness.json missing — no harness installed?")
         return finish()
     try:
-        cfg = json.loads(read(manifest_path))
+        manifest_raw = read(manifest_path)
+        cfg = json.loads(manifest_raw)
         record("PASS", "manifest", f"tier {cfg.get('tier', '?')}")
     except Exception as e:
         record("FAIL", "manifest", f"unparseable: {e}")
         return finish()
 
-    # 2. Components exist, non-empty, placeholders filled, markers present
+    # 1b. The manifest file itself must carry no unfilled template token.
+    if PLACEHOLDER.search(manifest_raw):
+        record("FAIL", "manifest placeholder",
+               "unfilled template token (e.g. {{TIER}}) in .claude/harness.json")
+    else:
+        record("PASS", "manifest placeholder", "no unfilled tokens")
+
+    # 2. Components exist, non-empty, placeholders filled, markers present, tier-pruned
+    tier = cfg.get("tier")
     for comp in cfg.get("components", []):
         p = os.path.join(root, comp)
         if not os.path.isfile(p) or os.path.getsize(p) == 0:
             record("FAIL", f"component {comp}", "missing or empty")
             continue
         text = read(p)
-        # Placeholder check applies to installed templates (.md/.json), not copied
-        # scripts — this file legitimately contains '{{' in its own source.
-        if not comp.endswith(".py") and "{{" in text:
-            record("FAIL", f"component {comp}", "unfilled template placeholder '{{' remains")
+        # Placeholder/marker/tier-prune checks apply to installed docs, not copied
+        # scripts — a .py legitimately contains template tokens in its own source.
+        if not comp.endswith(".py") and PLACEHOLDER.search(text):
+            record("FAIL", f"component {comp}", "unfilled template placeholder (e.g. {{TIER}}) remains")
         elif comp.endswith(".md") and "<!-- harness:" not in text:
             record("FAIL", f"component {comp}", "harness marker comment missing")
+        elif tier == "S" and not comp.endswith(".py") and "Delete on tier S" in text:
+            record("FAIL", f"component {comp}",
+                   "tier-M-only section left un-pruned (contains a 'Delete on tier S' marker) — "
+                   "an installed doc describing enforcement this tier doesn't have")
         else:
             record("PASS", f"component {comp}")
 
@@ -144,7 +163,7 @@ def main() -> int:
     else:
         record("FAIL", "CLAUDE.md", "missing")
 
-    # 4. Hook wiring: installed-but-unwired AND wired-but-missing both fail
+    # 4. Hook wiring: enabled-but-absent, installed-but-unwired, and wired-but-missing all fail.
     hooks_dir = os.path.join(root, ".claude", "hooks")
     installed_hooks = (
         [h for h in os.listdir(hooks_dir) if h.endswith(".py")] if os.path.isdir(hooks_dir) else []
@@ -152,21 +171,33 @@ def main() -> int:
     settings_path = os.path.join(root, ".claude", "settings.json")
     settings = read(settings_path) if os.path.isfile(settings_path) else ""
     referenced = set(re.findall(r"\.claude/hooks/([\w.\-]+\.py)", settings))
-    if installed_hooks or referenced:
+    # hooks.enabled = the explicit contract: these MUST be present, wired, and plant-passing.
+    # Absent (tier S / no hooks) → no expected hooks, backward compatible.
+    enabled = (cfg.get("hooks") or {}).get("enabled") or []
+    if installed_hooks or referenced or enabled:
         unwired = [h for h in installed_hooks if h not in referenced]
         phantom = [
             h for h in referenced
             if not os.path.isfile(os.path.join(hooks_dir, h))
             and f"test ! -f .claude/hooks/{h}" not in settings
         ]
-        if unwired:
+        missing_enabled = [h for h in enabled if h not in installed_hooks]
+        if missing_enabled:
+            record("FAIL", "hook wiring",
+                   f"manifest hooks.enabled lists hook(s) not installed on disk: {', '.join(missing_enabled)} "
+                   "— a deleted hook whose 'test ! -f'-guarded settings line lingers would be silent-green. "
+                   "Reinstall the hook, or drop it from hooks.enabled if retired.")
+        elif unwired:
             record("FAIL", "hook wiring", f"installed but not in settings.json: {', '.join(unwired)}")
         elif phantom:
             record("FAIL", "hook wiring",
                    f"settings.json invokes missing hook(s) without a 'test ! -f' guard "
                    f"(would block every edit): {', '.join(phantom)}")
         else:
-            record("PASS", "hook wiring", f"{len(installed_hooks)} hook(s) registered")
+            detail = f"{len(installed_hooks)} hook(s) registered"
+            if enabled:
+                detail += f"; {len(enabled)} enabled and present"
+            record("PASS", "hook wiring", detail)
 
     # 4b. Generated docs freshness: regenerate and diff against committed
     for target, cmd in (cfg.get("generated_docs") or {}).items():
@@ -208,15 +239,36 @@ def main() -> int:
         else:
             record("SKIP", "plant: protected paths", "no protected_paths configured in manifest")
     if "secret_scan.py" in installed_hooks:
+        cfg_py = os.path.join(root, "src", "config.py")
         plant(
             "plant: secret scan",
             "secret_scan.py",
             {"tool_name": "Write", "tool_input": {
-                "file_path": os.path.join(root, "src", "config.py"),
-                "content": 'aws_key = "AKIA1234567890ABCDEF"'}},
+                "file_path": cfg_py, "content": 'aws_key = "AKIA1234567890ABCDEF"'}},
             {"tool_name": "Write", "tool_input": {
-                "file_path": os.path.join(root, "src", "config.py"),
-                "content": 'aws_key = os.environ["AWS_KEY"]'}},
+                "file_path": cfg_py, "content": 'aws_key = os.environ["AWS_KEY"]'}},
+            root,
+        )
+        # Second detector: high-entropy assignment (proves the ASSIGN branch is live).
+        plant(
+            "plant: secret scan (entropy assign)",
+            "secret_scan.py",
+            {"tool_name": "Write", "tool_input": {
+                "file_path": cfg_py, "content": 'api_key = "aB3xK9mQ2pL7vT4wR8nZ6yH1sD5fG0jC"'}},
+            {"tool_name": "Write", "tool_input": {
+                "file_path": cfg_py, "content": 'api_key = os.environ["API_KEY"]'}},
+            root,
+        )
+        # MultiEdit shape: the secret must be read from edits[].new_string, not just content.
+        plant(
+            "plant: secret scan (MultiEdit)",
+            "secret_scan.py",
+            {"tool_name": "MultiEdit", "tool_input": {
+                "file_path": cfg_py,
+                "edits": [{"old_string": "", "new_string": 'aws_key = "AKIA1234567890ABCDEF"'}]}},
+            {"tool_name": "MultiEdit", "tool_input": {
+                "file_path": cfg_py,
+                "edits": [{"old_string": "", "new_string": 'aws_key = os.environ["AWS_KEY"]'}]}},
             root,
         )
     if "status_guard.py" in installed_hooks:
@@ -233,6 +285,20 @@ def main() -> int:
             {"tool_name": "Write", "tool_input": {
                 "file_path": story,
                 "content": f"---\nid: S-plant\nstatus: {gated}\nverify_cmd: make check\nresult: exit 0\n---\n"}},
+            root,
+        )
+        # MultiEdit shape: the status/evidence must be read from edits[].new_string.
+        plant(
+            "plant: status guard (MultiEdit)",
+            "status_guard.py",
+            {"tool_name": "MultiEdit", "tool_input": {
+                "file_path": story,
+                "edits": [{"old_string": "", "new_string":
+                           f'---\nid: S-plant\nstatus: {gated}\nverify_cmd: ""\nresult: ""\n---\n'}]}},
+            {"tool_name": "MultiEdit", "tool_input": {
+                "file_path": story,
+                "edits": [{"old_string": "", "new_string":
+                           f"---\nid: S-plant\nstatus: {gated}\nverify_cmd: make check\nresult: exit 0\n---\n"}]}},
             root,
         )
 

@@ -83,7 +83,21 @@ Prompting is not enforcing — every rule wants an executed backstop. State live
 
 ## Verification
 
-The machinery is tested, not asserted. A synthetic install passes the full self-test, and each of these tampers is caught: softening a core rule (hash mismatch), hollowing out a hook (plant violation accepted), unwiring a hook from settings, a phantom settings entry pointing at a missing hook, an unfilled template placeholder, a stale generated STATUS, and hand-flipping a work item to `done` with empty-quoted evidence.
+The machinery is tested, not asserted. `scripts/selftest_synthetic.py` — run in CI on every push and pull request — builds a full tier-M install in a tempdir, asserts the shipped self-test passes it with every plant firing, then applies each tamper below and asserts the self-test flips to a failure:
+
+- softening a core rule (hash mismatch)
+- hollowing out a hook (plant violation accepted)
+- removing a hook's high-entropy / MultiEdit detector (a second plant catches it)
+- unwiring a hook from settings.json
+- deleting an *enabled* hook file while its `test ! -f`-guarded settings line remains — `hooks.enabled` makes this fail instead of passing silently
+- an unfilled `{{ }}` template placeholder in an installed doc, or in the manifest itself
+- a stale generated STATUS.md
+- hand-flipping a work item to `done` with empty-quoted evidence
+- a tier-S install still carrying a tier-M `Delete on tier S` section
+
+It also feeds the hooks `MultiEdit`- and `NotebookEdit`-shaped payloads directly and asserts the credential and protected-path guards catch both shapes (and the status guard the `MultiEdit` form) — the write surfaces the hooks read beyond a plain `Write`.
+
+(CI does not run `make check` or the dogfood `harness_selftest.py .`: this repo's own installed harness is intentionally git-excluded, so a fresh checkout has neither. The synthetic install is the self-contained gate.)
 
 ## License
 

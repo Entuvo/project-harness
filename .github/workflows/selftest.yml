@@ -1,0 +1,26 @@
+name: harness self-test
+
+# The committed, self-contained product test. It builds a synthetic tier-M
+# install in a tempdir, asserts the shipped self-test PASSes it (with every
+# plant firing), then applies each tamper and asserts the self-test flips to a
+# failure. NOTE: `make check` and the dogfood `harness_selftest.py .` are NOT
+# run here — this repo's own installed harness (.claude/, CLAUDE.md, docs/,
+# Makefile) is intentionally git-excluded, so a fresh checkout has neither.
+# selftest_synthetic.py is the CI-appropriate gate. Stdlib only, offline.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Byte-compile every script
+        run: python3 -m compileall -q scripts
+      - name: Synthetic tier-M install self-test
+        run: python3 scripts/selftest_synthetic.py
