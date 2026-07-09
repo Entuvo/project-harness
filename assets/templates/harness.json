@@ -23,6 +23,6 @@
     "story_glob": "docs/stories/*.md"
   },
   "generated_docs": {},
-  "_generated_docs_example": {"docs/STATUS.md": "python3 scripts/gen_status.py docs/stories"},
+  "_generated_docs_example": {"docs/STATUS.md": "python3 scripts/gen_status.py docs/stories", "docs/status.html": "python3 scripts/gen_dashboard.py ."},
   "core_rules_sha256": "{{FILLED_BY: python3 scripts/harness_selftest.py --hash-rules <root>}}"
 }
