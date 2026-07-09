@@ -1,0 +1,12 @@
+{
+  "name": "entuvo-tools",
+  "owner": { "name": "Entuvo" },
+  "description": "Entuvo's tooling for agentic software development.",
+  "plugins": [
+    {
+      "name": "project-harness",
+      "source": { "source": "github", "repo": "Entuvo/project-harness" },
+      "description": "Set up and maintain a project harness for agentic software development — unknowns discovery, drift prevention, and evidence-gated progress."
+    }
+  ]
+}
