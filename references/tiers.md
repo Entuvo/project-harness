@@ -59,6 +59,10 @@ Hook wiring: copy hooks into the project's `.claude/hooks/`, register via `asset
 
 **Tool-call boundary (all three hooks).** They see `Edit` / `Write` / `MultiEdit` / `NotebookEdit` payloads — reading `file_path` or `notebook_path`, and content from `content` / `new_string` / `edits[].new_string` / `new_source`. A `Bash` `sed` / `>>` / `printf` edit bypasses every one of them; that is why audit check 4 samples status evidence directly rather than trusting the status-guard hook alone.
 
+### Optional: HTML status dashboard (any tier)
+
+`scripts/gen_dashboard.py` (copy into the project) renders the whole harness state — tier, the work-item board, PRD clause coverage, plan progress, the unknowns quadrants, decisions to review, and the latest audit verdict — as one page: `python3 scripts/gen_dashboard.py . > docs/status.html`. Opt-in at any tier (tier S degrades — no board); **not** installed by default, so it never adds to the ceremony budget. The output is a plain **self-contained** standalone file (inline CSS/JS, system fonts, no external deps) — **tool-agnostic** (opens in any browser, works under Claude Code or Codex, never a hosted Artifact) and **read-only** (a dashboard that let you hand-flip a status would violate status-from-evidence). It is deterministic and timestamp-free, so register it under `generated_docs` and the self-test's freshness gate catches a stale dashboard. Every panel derives from a structured signal; freeform sources degrade to an omitted panel rather than a mis-parse.
+
 ## Tier L — grown, never installed (patterns catalog)
 
 For long-running, high-stakes, parallel-agent projects. Do not install these at setup; when an audit retro shows the pain, add the matching pattern as a backlog item with the incident named:

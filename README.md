@@ -73,7 +73,9 @@ project-harness/
 │   └── harness.json · settings-hooks.json
 └── scripts/
     ├── harness_selftest.py     # proves the harness fires; also --hash-rules
+    ├── selftest_synthetic.py   # synthetic tier-M install test (the CI gate)
     ├── gen_status.py           # STATUS.md generator (tier M)
+    ├── gen_dashboard.py        # self-contained HTML status dashboard (opt-in)
     └── hooks/                  # protected_paths.py · secret_scan.py · status_guard.py
 ```
 
