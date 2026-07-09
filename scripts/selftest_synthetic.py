@@ -27,6 +27,7 @@ REPO = Path(__file__).resolve().parents[1]
 SELFTEST = REPO / "scripts" / "harness_selftest.py"
 HOOKS_SRC = REPO / "scripts" / "hooks"
 GEN_STATUS = REPO / "scripts" / "gen_status.py"
+GEN_DASH = REPO / "scripts" / "gen_dashboard.py"
 
 FAILURES = []
 
@@ -124,22 +125,60 @@ def build_golden(root: Path):
         "## Always-on rules\n" + CORE_RULES + "\n",
     )
 
-    for name, marker in [
-        ("PRD", "prd"), ("HARNESS", "harness-md"), ("UNKNOWNS", "unknowns"),
-        ("PLAN", "plan"), ("DECISIONS", "decisions"), ("ACTIVE", "active"),
-    ]:
+    for name, marker in [("HARNESS", "harness-md"), ("ACTIVE", "active")]:
         write(root / "docs" / f"{name}.md", f"# {name}\n<!-- harness:{marker} v1 -->\n\nSynthetic body.\n")
 
-    write(
-        root / "docs" / "stories" / "S-1.md",
-        "---\nid: S-1\nstatus: done\nverify_cmd: make check\nresult: exit 0\n"
-        "artifact: docs/evidence/s1.txt\n---\n# S-1\n",
-    )
+    # Richer docs so the dashboard panels have structured signals to render.
+    write(root / "docs" / "PRD.md",
+          "# PRD\n<!-- harness:prd v1 -->\n\n"
+          "### R1 — Session\n- **R1.c1:** create checkout session\n- **R1.c2:** expire idle session\n\n"
+          "### R2 — Webhooks\n- **R2.c1:** split payment intents\n- **R2.c2:** verify signature\n"
+          "- **R2.c3:** retry backoff\n\n### R3 — Fraud\n- **R3.c1:** score threshold\n")
+    write(root / "docs" / "PLAN.md",
+          "# Plan\n<!-- harness:plan v1 -->\n\n## Steps\n"
+          "- [x] Session endpoint -> verify: pytest tests/test_session.py\n"
+          "- [x] Webhook verify -> verify: make check\n"
+          "- [ ] Split intents -> verify: pytest -k split\n")
+    write(root / "docs" / "UNKNOWNS.md",
+          "# Unknowns\n<!-- harness:unknowns v1 -->\n\n"
+          "## Open decisions\n| ID | Decision | Options |\n|---|---|---|\n"
+          "| D1 | datastore | A/B |\n| D2 | auth model | session/JWT |\n\n"
+          "## Assumptions awaiting confirmation\n| ID | Assumption | Status |\n|---|---|---|\n"
+          "| A1 | idempotency 24h | unverified |\n\n"
+          "## Blindspot findings\n| ID | Finding | Where |\n|---|---|---|\n"
+          "| B1 | coupon table no FK | legacy |\n\n"
+          "## Preference gaps\n| ID | Area | Variants |\n|---|---|---|\n")
+    write(root / "docs" / "DECISIONS.md",
+          "# Decisions\n<!-- harness:decisions v1 -->\n\n"
+          "## 2026-07-01 — DEC-1: Tier M\n- **Context:** setup\n- **revisit_when:** vendored code appears\n\n"
+          "## 2026-07-02 — DEC-2: Datastore = Postgres\n- **Context:** scale\n"
+          "- **revisit_when:** write throughput > 5k/s\n")
+
+    story_data = [
+        ("S-1", "done", "R1.c1", "\nartifact: docs/evidence/s1.txt"),
+        ("S-2", "done", "R2.c2", "\nartifact: docs/evidence/s2.txt"),
+        ("S-3", "in-progress", "R2.c1", ""),
+        ("S-4", "in-progress", "R2.c3", "\nverify_cmd: pytest -k fraud"),
+        ("S-5", "planned", "R1.c2", ""),
+    ]
+    for sid, status, ref, extra in story_data:
+        write(root / "docs" / "stories" / f"{sid}.md",
+              f"---\nid: {sid}\ntitle: {sid} work item\nstatus: {status}\n"
+              f"prd_refs: [{ref}]{extra}\n---\n# {sid}\n")
     gen = subprocess.run(
         [sys.executable, str(GEN_STATUS), str(root / "docs" / "stories")],
         capture_output=True, text=True, check=True,
     )
     write(root / "docs" / "STATUS.md", gen.stdout)
+
+    write(root / "docs" / "audits" / "audit-2026-07-06.md",
+          "# Phase audit — 2026-07-06\n\n"
+          "| # | Check | Result | Evidence |\n|---|-------|--------|----------|\n"
+          "| 1 | Presence & wiring | PASS | ok |\n| 2 | Rules unweakened | PASS | ok |\n"
+          "| 3 | Guards fire | PASS | ok |\n| 4 | Status honesty | PARTIAL | reviewer offline |\n"
+          "| 5 | Drift sweep | PASS | ok |\n| 6 | Retro | n/a | — |\n| 7 | Report | done | — |\n\n"
+          "## Findings\n1. S-3 in-progress with no evidence artifact.\n\n"
+          "## Verdict\nPROCEED-WITH-FIXES\n")
 
     write(root / "vendor" / "lib.py", "x = 1\n")
     write(root / ".claude" / "settings.json", json.dumps(SETTINGS, indent=2))
@@ -255,6 +294,41 @@ def direct_payloads(golden: Path):
         "protected_paths catches a NotebookEdit (notebook_path) under a protected path")
 
 
+def run_dashboard(root: Path) -> str:
+    p = subprocess.run([sys.executable, str(GEN_DASH), str(root)],
+                       capture_output=True, text=True, timeout=60)
+    check(p.returncode == 0, f"gen_dashboard exits 0 (got {p.returncode})", p.stderr)
+    return p.stdout
+
+
+def dashboard_tests(golden: Path):
+    """gen_dashboard: complete standalone doc, self-contained, panels render,
+    deterministic, and degrades at tier S."""
+    html = run_dashboard(golden)
+    check(html.startswith("<!DOCTYPE html>") and "</html>" in html,
+          "dashboard is a complete standalone document")
+    for bad in ('="http://', '="https://', "@import", "url(http", "<script src", "<link "):
+        check(bad not in html, f"self-contained: no {bad!r}")
+    check('class="board"' in html and "S-1" in html and "S-3" in html,
+          "work-item board renders real stories")
+    check("S-plant" not in html, "board shows only real stories, not plant fixtures")
+    check('class="clauses"' in html and "R2.c1" in html, "PRD coverage renders clauses")
+    check("PROCEED" in html, "latest-audit verdict is shown")
+    check("revisit_when" in html and "DUE NOW" not in html,
+          "decisions listed for review, no fabricated 'due' verdict")
+    check("Open decisions" in html, "unknowns quadrants render")
+    check(run_dashboard(golden) == html, "dashboard is byte-deterministic across runs")
+    with tempfile.TemporaryDirectory(prefix="ph-dash-s-") as d:
+        t = Path(d) / "s"
+        shutil.copytree(golden, t)
+        shutil.rmtree(t / "docs" / "stories")
+        edit_json(t / ".claude" / "harness.json", lambda o: o.__setitem__("tier", "S"))
+        h2 = run_dashboard(t)
+        check('class="board"' not in h2, "board omitted at tier S (no stories)")
+        check(h2.startswith("<!DOCTYPE html>") and "</html>" in h2,
+              "tier-S dashboard still renders")
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="ph-golden-") as d:
         golden = Path(d) / "install"
@@ -310,6 +384,7 @@ def main() -> int:
                     lambda t: edit(t / "docs" / "PRD.md", lambda s: s + "\nExample: {{ user.name }}\n"))
 
         direct_payloads(golden)
+        dashboard_tests(golden)
 
     print()
     if FAILURES:
