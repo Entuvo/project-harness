@@ -79,11 +79,14 @@ The optional [status dashboard](#the-status-dashboard) can be added to any tier.
 
 ## Getting started
 
-**Install the skill** (any of):
+**Install** — add this repo as a plugin marketplace, then install the plugin:
 
-- Save the packaged `project-harness.skill` file (Claude desktop / Cowork: click *Save skill*).
-- From a marketplace repo: `/plugin marketplace add <owner>/<repo>` then `/plugin install project-harness@<marketplace>`.
-- Claude Code, manual: copy this folder into `~/.claude/skills/` (global) or `<project>/.claude/skills/` (per-project).
+```
+/plugin marketplace add Entuvo/project-harness
+/plugin install project-harness@entuvo-tools
+```
+
+In Claude desktop / Cowork you can instead save the packaged `project-harness.skill` and click *Save skill*.
 
 **At kickoff**, in the repo you're setting up, say:
 
