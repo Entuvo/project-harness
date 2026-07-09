@@ -248,6 +248,16 @@ def _unwire(t: Path):
     edit_json(t / ".claude" / "settings.json", drop)
 
 
+def _mask_exit(t: Path):
+    """Weaken a hook by masking its exit code in settings.json — the file still
+    fires when run directly, but the wired command swallows the block."""
+    def mask(obj):
+        for h in obj["hooks"]["PreToolUse"][0]["hooks"]:
+            if "secret_scan.py" in h["command"]:
+                h["command"] += " || exit 0"
+    edit_json(t / ".claude" / "settings.json", mask)
+
+
 def direct_payloads(golden: Path):
     """FIX 3 + FIX 4: hooks must read MultiEdit/NotebookEdit surfaces, and secret_scan
     must catch prefixes on {{ }} lines while freeing benign hyphenated sk- strings."""
@@ -283,9 +293,33 @@ def direct_payloads(golden: Path):
     check(run_hook("secret_scan.py", {"tool_name": "Write", "tool_input": {
         "file_path": src, "content": 'model = "sk-0123456789abcdef0123456789abcdef"'}}) == 2,
         "secret_scan catches a bare 32-char sk- provider key (floor 32, not 40)")
+    check(run_hook("secret_scan.py", {"tool_name": "Write", "tool_input": {
+        "file_path": src, "content": 'aws_access_key_id = "ASIA1234567890ABCDEF"'}}) == 2,
+        "secret_scan catches an ASIA STS access key (not just AKIA)")
+    check(run_hook("secret_scan.py", {"tool_name": "Write", "tool_input": {
+        "file_path": src, "content": 'api_key: str = "aB3xK9mQ2pL7vT4wR8nZ6yH1sD5fG0jC"'}}) == 2,
+        "secret_scan catches a type-annotated assignment (name: type = value)")
+    check(run_hook("secret_scan.py", {"tool_name": "Write", "tool_input": {
+        "file_path": src, "content": 'api_key = "aB3xK9mQ2pL7vT4wR8nZ6yH1sD5fG0jC${BYPASS}"'}}) == 2,
+        "secret_scan blocks a real secret with a ${...} suffix (residue-judged, not substring-sanctioned)")
+    check(run_hook("secret_scan.py", {"tool_name": "Write", "tool_input": {
+        "file_path": src, "content": 'private_key = "aB3xK9mQ2pL7vT4wR8nZ6yH1sD5fG0jC"'}}) == 2,
+        "secret_scan catches a private_key-named assignment")
     check(run_hook("status_guard.py", {"tool_name": "MultiEdit", "tool_input": {
         "file_path": story, "edits": [{"old_string": "", "new_string": evless}]}}) == 2,
         "status_guard catches evidence-less gated status in MultiEdit edits[].new_string")
+    check(run_hook("status_guard.py", {"tool_name": "Write", "tool_input": {
+        "file_path": story,
+        "content": '---\nid: S-plant\nstatus : done\nverify_cmd: ""\nresult: ""\n---\n'}}) == 2,
+        "status_guard catches 'status :' with whitespace before the colon")
+    check(run_hook("status_guard.py", {"tool_name": "Write", "tool_input": {
+        "file_path": story,
+        "content": '---\nid: S-plant\nStatus: done\nverify_cmd: ""\nresult: ""\n---\n'}}) == 2,
+        "status_guard catches a capitalized 'Status:' key")
+    check(run_hook("status_guard.py", {"tool_name": "Edit", "tool_input": {
+        "file_path": story, "old_string": "x",
+        "new_string": "status: done means the work is verified in prose."}}) == 0,
+        "status_guard ignores prose that merely contains 'status: done ...' (no false positive)")
     check(run_hook("protected_paths.py", {"tool_name": "MultiEdit", "tool_input": {
         "file_path": vend, "edits": [{"old_string": "", "new_string": "x = 1"}]}}) == 2,
         "protected_paths catches a MultiEdit under a protected path")
@@ -327,6 +361,24 @@ def dashboard_tests(golden: Path):
         check('class="board"' not in h2, "board omitted at tier S (no stories)")
         check(h2.startswith("<!DOCTYPE html>") and "</html>" in h2,
               "tier-S dashboard still renders")
+    with tempfile.TemporaryDirectory(prefix="ph-dash-a-") as d:
+        t = Path(d) / "a"
+        shutil.copytree(golden, t)
+        write(t / "docs" / "audits" / "audit-draft.md", "# draft\n## Verdict\nBLOCKED\n")
+        h3 = run_dashboard(t)
+        check("PROCEED" in h3,
+              "latest-audit panel keeps the dated audit, not a non-dated audit-draft.md")
+
+
+def gen_status_tests():
+    """gen_status: a table cell containing '|' must not corrupt the Markdown table."""
+    with tempfile.TemporaryDirectory(prefix="ph-gs-") as d:
+        sd = Path(d) / "stories"
+        write(sd / "S-1.md", "---\nid: S-1\nstatus: done\ntitle: A | B danger\n---\n")
+        gs = subprocess.run([sys.executable, str(GEN_STATUS), str(sd)],
+                            capture_output=True, text=True)
+        check("A \\| B danger" in gs.stdout,
+              "gen_status escapes '|' in a title cell (no table corruption)")
 
 
 def main() -> int:
@@ -378,6 +430,8 @@ def main() -> int:
         tamper(golden, "ASSIGN/MultiEdit detector removed (PREFIXES-only hook)",
                lambda t: write(t / ".claude" / "hooks" / "secret_scan.py", PREFIXES_ONLY_HOOK),
                "entropy assign")
+        tamper(golden, "exit-code-masked hook wiring (settings appends || exit 0)",
+               _mask_exit, "HOLLOW GUARD")
 
         # Negative: the narrowed placeholder scan must NOT fire on spaced Jinja.
         expect_pass(golden, "spaced Jinja {{ user.name }} in a doc is not a placeholder",
@@ -385,6 +439,7 @@ def main() -> int:
 
         direct_payloads(golden)
         dashboard_tests(golden)
+        gen_status_tests()
 
     print()
     if FAILURES:

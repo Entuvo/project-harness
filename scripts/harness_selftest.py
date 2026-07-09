@@ -65,14 +65,62 @@ def run_hook(hook_path: str, payload: dict, env_extra=None) -> int:
         return -1
 
 
+def run_wired(cmd: str, payload: dict, root: str) -> int:
+    """Run the ACTUAL settings.json command (shell, cwd=root) with the plant payload.
+    This is what Claude Code runs on every edit — so it catches exit-code masking
+    (`… || true`) that invoking the hook file directly would sail right past."""
+    env = {k: v for k, v in os.environ.items() if k != "ALLOW_PROTECTED_EDIT"}
+    try:
+        proc = subprocess.run(
+            cmd, shell=True, cwd=root, input=json.dumps(payload),
+            capture_output=True, text=True, timeout=15, env=env,
+        )
+        return proc.returncode
+    except Exception:
+        return -1
+
+
+def wired_cmd(root: str, hook: str):
+    """The settings.json command string that invokes `hook`, or None if unwired."""
+    sp = os.path.join(root, ".claude", "settings.json")
+    if not os.path.isfile(sp):
+        return None
+    try:
+        obj = json.loads(read(sp))
+    except Exception:
+        return None
+    found = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            for k, val in o.items():
+                if k == "command" and isinstance(val, str) and f".claude/hooks/{hook}" in val:
+                    found.append(val)
+                else:
+                    walk(val)
+        elif isinstance(o, list):
+            for x in o:
+                walk(x)
+
+    walk(obj)
+    return found[0] if found else None
+
+
 def plant(name: str, hook: str, violation: dict, clean: dict, root: str):
-    """A healthy guard rejects the fake (exit 2) and allows the clean case (exit 0)."""
+    """A healthy guard rejects the fake (exit 2) and allows the clean case (exit 0).
+    Runs the wired settings command when present (catches exit-code masking), else
+    the hook file directly."""
     path = os.path.join(root, ".claude", "hooks", hook)
     if not os.path.isfile(path):
         record("FAIL", name, f"hook not installed at .claude/hooks/{hook}")
         return
-    v = run_hook(path, violation)
-    c = run_hook(path, clean)
+    cmd = wired_cmd(root, hook)
+    if cmd:
+        v = run_wired(cmd, violation, root)
+        c = run_wired(cmd, clean, root)
+    else:
+        v = run_hook(path, violation)
+        c = run_hook(path, clean)
     if v == 2 and c == 0:
         record("PASS", name, "rejected the plant, allowed the clean case")
     elif v != 2:

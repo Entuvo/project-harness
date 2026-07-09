@@ -1,7 +1,7 @@
 {
   "name": "project-harness",
   "description": "Set up and maintain a project harness for agentic software development — unknowns discovery, drift prevention, and evidence-gated progress. Right-sizes a harness at kickoff and audits it at every phase boundary.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": { "name": "Entuvo" },
   "homepage": "https://github.com/Entuvo/project-harness",
   "repository": "https://github.com/Entuvo/project-harness",

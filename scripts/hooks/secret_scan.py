@@ -22,20 +22,26 @@ import sys
 # short hyphenated identifier like `sk-loading-spinner-container` (25 chars) is not
 # a false hit. ponytail: length is the discriminator, not charset; a bare sk- key
 # under 32 chars relies on the entropy detector when it is secret-named.
+# A[KS]IA covers both permanent (AKIA) and temporary/STS (ASIA) AWS access keys.
 PREFIXES = re.compile(
-    r"(AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9_-]{32,}|ghp_[A-Za-z0-9]{20,}"
+    r"(A[KS]IA[0-9A-Z]{16}|sk-[A-Za-z0-9_-]{32,}|ghp_[A-Za-z0-9]{20,}"
     r"|xox[bpars]-[A-Za-z0-9\-]{10,}|AIza[0-9A-Za-z_\-]{20,}"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----)"
 )
+# Secret-named assignment. The optional `(?::\s*[A-Za-z_][\w\[\], .]*)?` skips a
+# type annotation so `api_key: str = "…"` is not a blind spot; the separator then
+# matches `=` (typed/plain assignment) or `:` (YAML/dict).
 ASSIGN = re.compile(
-    r"(secret|token|passw|api_?key|credential)[A-Za-z0-9_]*\s*[:=]\s*[\"']([^\"']{16,})[\"']",
+    r"(secret|token|passw|api_?key|access_?key|private_?key|credential)[A-Za-z0-9_]*"
+    r"\s*(?::\s*[A-Za-z_][\w\[\], .]*)?\s*[:=]\s*[\"']([^\"']{16,})[\"']",
     re.IGNORECASE,
 )
 SKIP_PATH = re.compile(r"(^|/)(tests?|fixtures?|__snapshots__|examples?)(/|$)")
-# A placeholder / interpolation. Matched against the ENTROPY detector's captured
-# VALUE (not the whole line) so a `# {{x}}`/`# ${x}` comment can't shield a real
-# secret literal. Prefixes fire regardless of this.
-SANCTIONED = re.compile(r"(os\.environ|getenv|\$\{|process\.env|<[A-Z_]+>|\{\{)")
+# Placeholder / interpolation spans. STRIPPED from the captured VALUE before the
+# entropy test — so a pure `"${VAULT_KEY}"` / `"{{ x }}"` residue is empty (freed),
+# but a real secret with a `${X}` glued on still leaves a high-entropy residue
+# (blocked). Substring-sanctioning the whole value was the bypass.
+INTERP = re.compile(r"\$\{[^}]*\}|\{\{[^}]*\}\}|<[A-Z_]+>|os\.environ\S*|process\.env\S*|getenv\([^)]*\)")
 
 
 def entropy(s: str) -> float:
@@ -71,10 +77,12 @@ def main() -> int:
                     file=sys.stderr,
                 )
                 return 2
-            # Entropy detector: secret-named assignment to a long literal, unless the
-            # VALUE itself is a placeholder/env-read (sanction the value, not the line).
+            # Entropy detector: secret-named assignment to a long literal, judged on
+            # the residue left after stripping placeholder/interpolation spans — a
+            # pure placeholder collapses to nothing; a real secret survives.
             m = ASSIGN.search(line)
-            if m and not SANCTIONED.search(m.group(2)) and entropy(m.group(2)) >= 3.0:
+            residue = INTERP.sub("", m.group(2)) if m else ""
+            if m and len(residue) >= 16 and entropy(residue) >= 3.0:
                 print(
                     f"BLOCKED: line {i} assigns a high-entropy literal to '{m.group(1)}…'. "
                     "If this is a real secret, move it to the environment. If it's a test "

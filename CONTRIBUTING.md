@@ -66,5 +66,28 @@ the concrete failure the machinery would have caught.
 4. Run the checks above and describe the result in the PR.
 5. Fill out the PR template so reviewers can see intent, verification, and tradeoffs.
 
+## Releasing
+
+Releases are lightweight and manual — no build pipeline, no third-party tooling.
+The version in `.claude-plugin/plugin.json` is the single source of truth and follows
+[Semantic Versioning](https://semver.org/) (bug fix → patch, backward-compatible
+behavior → minor, breaking change to templates/hooks/manifest shape → major).
+
+To cut a release:
+
+1. Land the change on `main` via PR (CI runs `scripts/selftest_synthetic.py`).
+2. Bump `version` in `.claude-plugin/plugin.json`.
+3. Move the `[Unreleased]` notes in [`CHANGELOG.md`](CHANGELOG.md) under a new
+   `[X.Y.Z] - YYYY-MM-DD` heading and update the compare links at the bottom.
+4. Commit (`chore(release): vX.Y.Z`), then tag and push:
+   ```bash
+   git tag -a vX.Y.Z -m "vX.Y.Z"
+   git push origin main --tags
+   ```
+5. Cut a GitHub Release from the tag, pasting that version's changelog section.
+
+The tag **must** match `plugin.json`'s `version` — that pairing is the contract for
+anyone installing the plugin from a pinned ref.
+
 By contributing, you agree that your contributions are licensed under the project's
 [MIT License](LICENSE).
