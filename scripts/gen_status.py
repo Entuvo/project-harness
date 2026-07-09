@@ -23,6 +23,12 @@ def frontmatter(text: str) -> dict:
     return fields
 
 
+def cell(v) -> str:
+    """A Markdown table cell: escape pipes and flatten newlines so a stray `|` in a
+    title/ref can't corrupt the table."""
+    return str(v).replace("|", "\\|").replace("\n", " ")
+
+
 def main() -> int:
     stories_dir = sys.argv[1] if len(sys.argv) > 1 else "docs/stories"
     items = []
@@ -47,9 +53,9 @@ def main() -> int:
         "| Status | Count |",
         "|---|---|",
     ]
-    out += [f"| {s} | {n} |" for s, n in sorted(counts.items())] or ["| (no work items) | 0 |"]
+    out += [f"| {cell(s)} | {n} |" for s, n in sorted(counts.items())] or ["| (no work items) | 0 |"]
     out += ["", "## Work items", "", "| ID | Status | PRD refs | Title |", "|---|---|---|---|"]
-    out += [f"| {i} | {s} | {r} | {t} |" for i, s, r, t in items]
+    out += [f"| {cell(i)} | {cell(s)} | {cell(r)} | {cell(t)} |" for i, s, r, t in items]
     print("\n".join(out))
     return 0
 

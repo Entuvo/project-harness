@@ -289,7 +289,9 @@ def _latest_audit(root):
     d = os.path.join(root, "docs", "audits")
     if not os.path.isdir(d):
         return None
-    files = sorted(f for f in os.listdir(d) if f.endswith(".md"))
+    # Only dated audit-YYYY-MM-DD.md files, so a non-dated draft can't sort last
+    # and shadow the real latest audit. Lexical sort of the date is chronological.
+    files = sorted(f for f in os.listdir(d) if re.match(r"audit-\d{4}-\d{2}-\d{2}.*\.md$", f))
     return os.path.join(d, files[-1]) if files else None
 
 

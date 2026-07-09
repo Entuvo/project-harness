@@ -67,8 +67,12 @@ def main() -> int:
         rel = os.path.relpath(os.path.realpath(fp), root)  # realpath: root is realpath'd, symlinks must agree
         if not fnmatch.fnmatch(rel, glob):
             return 0
-        m = re.search(r"^status:\s*(\S+)", new_text, re.MULTILINE)
-        if not m or m.group(1).strip("'\"") not in gated:
+        # Frontmatter-shaped status line only: case-insensitive, whitespace tolerant
+        # around the colon, and the value must be the WHOLE line (a bare scalar) — so
+        # prose like `status: done means …` in the body is not mistaken for a status.
+        m = re.search(r"^\s*status\s*:\s*(\S+)\s*$", new_text, re.IGNORECASE | re.MULTILINE)
+        gated_lower = [str(g).lower() for g in gated]
+        if not m or m.group(1).strip("'\"").lower() not in gated_lower:
             return 0
         # A fragment edit (Edit/MultiEdit/NotebookEdit) may omit evidence that
         # already exists on disk; a full Write carries the whole file.
